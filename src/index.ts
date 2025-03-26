@@ -23,6 +23,7 @@ class GoogleWorkspaceServer {
   private auth;
   private gmail;
   private calendar;
+  private calendarNameToId: Map<string, string> = new Map();
 
   constructor() {
     this.server = new Server(
@@ -52,6 +53,7 @@ class GoogleWorkspaceServer {
     this.calendar = google.calendar({ version: 'v3', auth: this.auth });
 
     this.setupToolHandlers();
+    this.initializeCalendarMap();
 
     // Error handling
     this.server.onerror = (error) => console.error('[MCP Error]', error);
@@ -499,6 +501,70 @@ class GoogleWorkspaceServer {
     }
   }
 
+  private async initializeCalendarMap() {
+    try {
+      const response = await this.calendar.calendarList.list();
+      const calendars = response.data.items || [];
+      console.error('Available calendars:', calendars.map(c => ({ name: c.summary, id: c.id })));
+
+      calendars.forEach(calendar => {
+        if (calendar.id && calendar.summary) {
+          // カレンダー名を小文字に変換して保存
+          const name = calendar.summary.toLowerCase();
+          this.calendarNameToId.set(name, calendar.id);
+          // ドットを除去したバージョンも保存
+          this.calendarNameToId.set(name.replace(/\./g, ''), calendar.id);
+          // スペースを除去したバージョンも保存
+          this.calendarNameToId.set(name.replace(/\s+/g, ''), calendar.id);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize calendar map:', error);
+    }
+  }
+
+  private getCalendarId(calendarNameOrId: string): string {
+    const searchName = calendarNameOrId.toLowerCase();
+
+    // まず完全一致で検索
+    if (this.calendarNameToId.has(searchName)) {
+      return this.calendarNameToId.get(searchName)!;
+    }
+
+    // ドットを除去したバージョンで検索
+    const noDotName = searchName.replace(/\./g, '');
+    if (this.calendarNameToId.has(noDotName)) {
+      return this.calendarNameToId.get(noDotName)!;
+    }
+
+    // スペースを除去したバージョンで検索
+    const noSpaceName = searchName.replace(/\s+/g, '');
+    if (this.calendarNameToId.has(noSpaceName)) {
+      return this.calendarNameToId.get(noSpaceName)!;
+    }
+
+    // 部分一致で検索
+    for (const [name, id] of this.calendarNameToId.entries()) {
+      if (name.includes(searchName) || searchName.includes(name)) {
+        return id;
+      }
+    }
+
+    // 見つからない場合は、入力された値をそのまま使用
+    return calendarNameOrId;
+  }
+
+  private convertToJST(dateTimeStr: string | null): string | null {
+    if (!dateTimeStr) return null;
+    const date = new Date(dateTimeStr);
+    return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  }
+
+  private convertToUTC(dateTimeStr: string): string {
+    const date = new Date(dateTimeStr);
+    return date.toISOString();
+  }
+
   private async handleCreateEvent(args: any) {
     try {
       const {
@@ -511,30 +577,32 @@ class GoogleWorkspaceServer {
         calendarId = 'primary'
       } = args;
 
+      const resolvedCalendarId = this.getCalendarId(calendarId);
+
       // Validate calendar ID
       try {
-        await this.calendar.calendars.get({ calendarId });
+        await this.calendar.calendars.get({ calendarId: resolvedCalendarId });
       } catch (error) {
         throw new McpError(
-          ErrorCode.INVALID_ARGUMENT,
-          `Invalid calendar ID: ${calendarId}`
+          ErrorCode.InvalidParams,
+          `Invalid calendar ID or name: ${calendarId}`
         );
       }
 
-      // Validate date formats
+      // Validate date formats and convert to UTC
       const startDate = new Date(start);
       const endDate = new Date(end);
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         throw new McpError(
-          ErrorCode.INVALID_ARGUMENT,
+          ErrorCode.InvalidRequest,
           'Invalid date format. Please use ISO 8601 format (e.g., "2024-03-20T10:00:00Z")'
         );
       }
 
       if (endDate <= startDate) {
         throw new McpError(
-          ErrorCode.INVALID_ARGUMENT,
+          ErrorCode.InvalidRequest,
           'End time must be after start time'
         );
       }
@@ -544,18 +612,18 @@ class GoogleWorkspaceServer {
         location,
         description,
         start: {
-          dateTime: start,
+          dateTime: this.convertToUTC(start),
           timeZone: 'UTC',
         },
         end: {
-          dateTime: end,
+          dateTime: this.convertToUTC(end),
           timeZone: 'UTC',
         },
         attendees: attendees?.map((email: string) => ({ email })),
       };
 
       const response = await this.calendar.events.insert({
-        calendarId,
+        calendarId: resolvedCalendarId,
         requestBody: event,
         sendUpdates: 'all',
       });
@@ -564,14 +632,22 @@ class GoogleWorkspaceServer {
         success: true,
         eventId: response.data.id,
         htmlLink: response.data.htmlLink,
+        start: {
+          utc: response.data!.start!.dateTime!,
+          jst: this.convertToJST(response.data!.start!.dateTime!)
+        },
+        end: {
+          utc: response.data!.end!.dateTime!,
+          jst: this.convertToJST(response.data!.end!.dateTime!)
+        }
       };
     } catch (error) {
       if (error instanceof McpError) {
         throw error;
       }
       throw new McpError(
-        ErrorCode.INTERNAL_ERROR,
-        `Failed to create event: ${error.message}`
+        ErrorCode.InternalError,
+        `Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -586,14 +662,14 @@ class GoogleWorkspaceServer {
       if (description) event.description = description;
       if (start) {
         event.start = {
-          dateTime: start,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(start),
+          timeZone: 'UTC',
         };
       }
       if (end) {
         event.end = {
-          dateTime: end,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(end),
+          timeZone: 'UTC',
         };
       }
       if (attendees) {
@@ -613,6 +689,14 @@ class GoogleWorkspaceServer {
             text: `Event updated successfully in calendar ${calendarId}. Event ID: ${response.data.id}`,
           },
         ],
+        start: {
+          utc: response.data!.start!.dateTime!,
+          jst: this.convertToJST(response.data!.start!.dateTime!)
+        },
+        end: {
+          utc: response.data!.end!.dateTime!,
+          jst: this.convertToJST(response.data!.end!.dateTime!)
+        }
       };
     } catch (error: any) {
       return {
