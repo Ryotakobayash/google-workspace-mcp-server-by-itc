@@ -8,6 +8,21 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { google } from 'googleapis';
+import { z } from 'zod';
+
+const ListResourcesRequestSchema = z.object({
+  jsonrpc: z.string(),
+  id: z.any(),
+  method: z.literal('resources/list'),
+  params: z.record(z.any())
+});
+
+const ListPromptsRequestSchema = z.object({
+  jsonrpc: z.string(),
+  id: z.any(),
+  method: z.literal('prompts/list'),
+  params: z.record(z.any())
+});
 
 // Environment variables required for OAuth
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -35,10 +50,10 @@ class GoogleWorkspaceServer {
         capabilities: {
           tools: {},
           resources: {
-            supported: false
+            supported: true
           },
           prompts: {
-            supported: false
+            supported: true
           }
         },
       }
@@ -53,6 +68,7 @@ class GoogleWorkspaceServer {
     this.calendar = google.calendar({ version: 'v3', auth: this.auth });
 
     this.setupToolHandlers();
+    this.setupAdditionalHandlers();
     this.initializeCalendarMap();
 
     // Error handling
@@ -306,6 +322,31 @@ class GoogleWorkspaceServer {
       }
     });
   }
+
+  private setupAdditionalHandlers() {
+    // resources/list
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      // クライアントが期待する形に合わせて返す（以下は例として空配列）
+      return {
+        resources: [
+          // 必要に応じて実際のリソース情報を入れる
+          // { id: 'resource-1', name: 'Some resource' },
+        ],
+      };
+    });
+
+    // prompts/list
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      // クライアントが期待する形に合わせて返す（以下は例として空配列）
+      return {
+        prompts: [
+          // 必要に応じて実際のプロンプト情報を入れる
+          // { id: 'prompt-1', text: 'Some prompt text' },
+        ],
+      };
+    });
+  }
+
 
   private async handleListEmails(args: any) {
     try {
