@@ -609,32 +609,68 @@ class GoogleWorkspaceServer {
 
   private async handleListEvents(args: any) {
     try {
-      const maxResults = args?.maxResults || 10;
+      const maxResults = args?.maxResults || 15;
       const timeMin = args?.timeMin || new Date().toISOString();
       const timeMax = args?.timeMax;
 
-      const response = await this.calendar.events.list({
-        calendarId: 'primary',
-        timeMin,
-        timeMax,
-        maxResults,
-        singleEvents: true,
-        orderBy: 'startTime',
+      // まずアカウントに紐付いた全カレンダーのリストを取得
+      const calendarListResponse = await this.calendar.calendarList.list();
+      const calendars = calendarListResponse.data.items || [];
+
+      let allEvents: any[] = [];
+
+      // 各カレンダーごとにイベントを取得
+      for (const calendarItem of calendars) {
+        const calId = calendarItem.id!;
+        const eventsResponse = await this.calendar.events.list({
+          calendarId: calId,
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          orderBy: 'startTime', // API側でもある程度並びますが、全体での整合性のために後で手動ソート
+        });
+
+        // JST に変換する関数の例
+        const convertToJST = (dateTimeStr: string | null) => {
+            if (!dateTimeStr) return null;
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+        };
+
+        const events = eventsResponse.data.items || [];
+        allEvents = allEvents.concat(
+            events.map((event) => ({
+              calendarId: calendarItem.id,
+              id: event.id,
+              summary: event.summary,
+              start: {
+                  ...event.start,
+                  jst: event.start!.dateTime ? convertToJST(event.start!.dateTime) : convertToJST(event.start!.date!)
+              },
+              end: {
+                  ...event.end,
+                  jst: event.end!.dateTime ? convertToJST(event.end!.dateTime) : convertToJST(event.end!.date!)
+              },
+              location: event.location,
+            }))
+        );
+      }
+
+      // すべてのイベントを開始時刻（dateTime もしくは date）で昇順にソート
+      allEvents.sort((a, b) => {
+        const aTime = new Date(a.start.dateTime || a.start.date);
+        const bTime = new Date(b.start.dateTime || b.start.date);
+        return aTime.getTime() - bTime.getTime();
       });
 
-      const events = response.data.items?.map((event) => ({
-        id: event.id,
-        summary: event.summary,
-        start: event.start,
-        end: event.end,
-        location: event.location,
-      }));
+      // 指定された件数だけ抽出
+      const limitedEvents = allEvents.slice(0, maxResults);
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(events, null, 2),
+            text: JSON.stringify(limitedEvents, null, 2),
           },
         ],
       };
@@ -650,6 +686,7 @@ class GoogleWorkspaceServer {
       };
     }
   }
+
 
   async run() {
     const transport = new StdioServerTransport();
