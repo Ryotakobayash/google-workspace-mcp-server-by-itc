@@ -325,28 +325,35 @@ class GoogleWorkspaceServer {
 
   private setupAdditionalHandlers() {
     // resources/list
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      // クライアントが期待する形に合わせて返す（以下は例として空配列）
+    this.server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
+      const defaultParams = { page: 1, limit: 10 };
+      const finalParams = Object.assign({}, defaultParams, request.params);
+
+      // finalParamsを元にリソース情報を取得して返す
       return {
         resources: [
-          // 必要に応じて実際のリソース情報を入れる
-          // { id: 'resource-1', name: 'Some resource' },
+          // 実際のリソース情報を取得するコードをここに追加
+          // 例: { id: 'resource-1', name: 'Some resource' }
         ],
+        paramsUsed: finalParams
       };
     });
 
     // prompts/list
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
-      // クライアントが期待する形に合わせて返す（以下は例として空配列）
+    this.server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
+      const defaultParams = { page: 1, limit: 10 };
+      const finalParams = Object.assign({}, defaultParams, request.params);
+
+      // finalParamsを元にプロンプト情報を取得して返す
       return {
         prompts: [
-          // 必要に応じて実際のプロンプト情報を入れる
-          // { id: 'prompt-1', text: 'Some prompt text' },
+          // 実際のプロンプト情報を取得するコードをここに追加
+          // 例: { id: 'prompt-1', text: 'Some prompt text' }
         ],
+        paramsUsed: finalParams
       };
     });
   }
-
 
   private async handleListEmails(args: any) {
     try {
@@ -602,7 +609,21 @@ class GoogleWorkspaceServer {
   }
 
   private convertToUTC(dateTimeStr: string): string {
-    const date = new Date(dateTimeStr);
+    let date: Date;
+
+    // タイムゾーン指定がない場合は日本時間(JST)として処理
+    if (!/Z|\+|\-/.test(dateTimeStr)) {
+      date = new Date(`${dateTimeStr}+09:00`);
+    } else {
+      date = new Date(dateTimeStr);
+    }
+
+    if (isNaN(date.getTime())) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'Invalid date format. Please use a valid ISO 8601 format (e.g., "2025-03-20T10:00:00+09:00")'
+      );
+    }
     return date.toISOString();
   }
 
@@ -670,17 +691,24 @@ class GoogleWorkspaceServer {
       });
 
       return {
-        success: true,
-        eventId: response.data.id,
-        htmlLink: response.data.htmlLink,
-        start: {
-          utc: response.data!.start!.dateTime!,
-          jst: this.convertToJST(response.data!.start!.dateTime!)
-        },
-        end: {
-          utc: response.data!.end!.dateTime!,
-          jst: this.convertToJST(response.data!.end!.dateTime!)
-        }
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              eventId: response.data.id,
+              htmlLink: response.data.htmlLink,
+              start: {
+                utc: response.data!.start!.dateTime!,
+                jst: this.convertToJST(response.data!.start!.dateTime!)
+              },
+              end: {
+                utc: response.data!.end!.dateTime!,
+                jst: this.convertToJST(response.data!.end!.dateTime!)
+              }
+            }, null, 2)
+          }
+        ]
       };
     } catch (error) {
       if (error instanceof McpError) {
@@ -861,7 +889,6 @@ class GoogleWorkspaceServer {
       };
     }
   }
-
 
   async run() {
     const transport = new StdioServerTransport();
