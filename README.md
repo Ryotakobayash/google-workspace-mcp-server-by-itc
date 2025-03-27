@@ -40,8 +40,8 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 1. **リポジトリのクローンとインストール**:
 
    ```bash
-   git clone https://github.com/epaproditus/google-workspace-mcp-server.git
-   cd google-workspace-mcp-server
+   git clone https://github.com/Yulikepython/gogole-workspace-mcp-server-by-itc.git
+   cd google-workspace-mcp-server-by-itc
    npm install
    ```
 
