@@ -8,6 +8,21 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { google } from 'googleapis';
+import { z } from 'zod';
+
+const ListResourcesRequestSchema = z.object({
+  jsonrpc: z.string(),
+  id: z.any(),
+  method: z.literal('resources/list'),
+  params: z.record(z.any())
+});
+
+const ListPromptsRequestSchema = z.object({
+  jsonrpc: z.string(),
+  id: z.any(),
+  method: z.literal('prompts/list'),
+  params: z.record(z.any())
+});
 
 // Environment variables required for OAuth
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -23,6 +38,7 @@ class GoogleWorkspaceServer {
   private auth;
   private gmail;
   private calendar;
+  private calendarNameToId: Map<string, string> = new Map();
 
   constructor() {
     this.server = new Server(
@@ -33,6 +49,12 @@ class GoogleWorkspaceServer {
       {
         capabilities: {
           tools: {},
+          resources: {
+            supported: true
+          },
+          prompts: {
+            supported: true
+          }
         },
       }
     );
@@ -46,7 +68,9 @@ class GoogleWorkspaceServer {
     this.calendar = google.calendar({ version: 'v3', auth: this.auth });
 
     this.setupToolHandlers();
-    
+    this.setupAdditionalHandlers();
+    this.initializeCalendarMap();
+
     // Error handling
     this.server.onerror = (error) => console.error('[MCP Error]', error);
     process.on('SIGINT', async () => {
@@ -200,6 +224,10 @@ class GoogleWorkspaceServer {
                 items: { type: 'string' },
                 description: 'List of attendee email addresses',
               },
+              calendarId: {
+                type: 'string',
+                description: 'Calendar ID to create the event in (default: "primary")',
+              },
             },
             required: ['summary', 'start', 'end']
           },
@@ -213,6 +241,10 @@ class GoogleWorkspaceServer {
               eventId: {
                 type: 'string',
                 description: 'Event ID to update',
+              },
+              calendarId: {
+                type: 'string',
+                description: 'Calendar ID containing the event (default: "primary")',
               },
               summary: {
                 type: 'string',
@@ -253,6 +285,10 @@ class GoogleWorkspaceServer {
                 type: 'string',
                 description: 'Event ID to delete',
               },
+              calendarId: {
+                type: 'string',
+                description: 'Calendar ID containing the event (default: "primary")',
+              },
             },
             required: ['eventId']
           },
@@ -287,6 +323,38 @@ class GoogleWorkspaceServer {
     });
   }
 
+  private setupAdditionalHandlers() {
+    // resources/list
+    this.server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
+      const defaultParams = { page: 1, limit: 10 };
+      const finalParams = Object.assign({}, defaultParams, request.params);
+
+      // finalParamsを元にリソース情報を取得して返す
+      return {
+        resources: [
+          // 実際のリソース情報を取得するコードをここに追加
+          // 例: { id: 'resource-1', name: 'Some resource' }
+        ],
+        paramsUsed: finalParams
+      };
+    });
+
+    // prompts/list
+    this.server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
+      const defaultParams = { page: 1, limit: 10 };
+      const finalParams = Object.assign({}, defaultParams, request.params);
+
+      // finalParamsを元にプロンプト情報を取得して返す
+      return {
+        prompts: [
+          // 実際のプロンプト情報を取得するコードをここに追加
+          // 例: { id: 'prompt-1', text: 'Some prompt text' }
+        ],
+        paramsUsed: finalParams
+      };
+    });
+  }
+
   private async handleListEmails(args: any) {
     try {
       const maxResults = args?.maxResults || 10;
@@ -305,7 +373,7 @@ class GoogleWorkspaceServer {
             userId: 'me',
             id: msg.id!,
           });
-          
+
           const headers = detail.data.payload?.headers;
           const subject = headers?.find((h) => h.name === 'Subject')?.value || '';
           const from = headers?.find((h) => h.name === 'From')?.value || '';
@@ -359,7 +427,7 @@ class GoogleWorkspaceServer {
             userId: 'me',
             id: msg.id!,
           });
-          
+
           const headers = detail.data.payload?.headers;
           const subject = headers?.find((h) => h.name === 'Subject')?.value || '';
           const from = headers?.find((h) => h.name === 'From')?.value || '';
@@ -481,54 +549,181 @@ class GoogleWorkspaceServer {
     }
   }
 
+  private async initializeCalendarMap() {
+    try {
+      const response = await this.calendar.calendarList.list();
+      const calendars = response.data.items || [];
+      console.error('Available calendars:', calendars.map(c => ({ name: c.summary, id: c.id })));
+
+      calendars.forEach(calendar => {
+        if (calendar.id && calendar.summary) {
+          // カレンダー名を小文字に変換して保存
+          const name = calendar.summary.toLowerCase();
+          this.calendarNameToId.set(name, calendar.id);
+          // ドットを除去したバージョンも保存
+          this.calendarNameToId.set(name.replace(/\./g, ''), calendar.id);
+          // スペースを除去したバージョンも保存
+          this.calendarNameToId.set(name.replace(/\s+/g, ''), calendar.id);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize calendar map:', error);
+    }
+  }
+
+  private getCalendarId(calendarNameOrId: string): string {
+    const searchName = calendarNameOrId.toLowerCase();
+
+    // まず完全一致で検索
+    if (this.calendarNameToId.has(searchName)) {
+      return this.calendarNameToId.get(searchName)!;
+    }
+
+    // ドットを除去したバージョンで検索
+    const noDotName = searchName.replace(/\./g, '');
+    if (this.calendarNameToId.has(noDotName)) {
+      return this.calendarNameToId.get(noDotName)!;
+    }
+
+    // スペースを除去したバージョンで検索
+    const noSpaceName = searchName.replace(/\s+/g, '');
+    if (this.calendarNameToId.has(noSpaceName)) {
+      return this.calendarNameToId.get(noSpaceName)!;
+    }
+
+    // 部分一致で検索
+    for (const [name, id] of this.calendarNameToId.entries()) {
+      if (name.includes(searchName) || searchName.includes(name)) {
+        return id;
+      }
+    }
+
+    // 見つからない場合は、入力された値をそのまま使用
+    return calendarNameOrId;
+  }
+
+  private convertToJST(dateTimeStr: string | null): string | null {
+    if (!dateTimeStr) return null;
+    const date = new Date(dateTimeStr);
+    return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  }
+
+  private convertToUTC(dateTimeStr: string): string {
+    let date: Date;
+
+    // タイムゾーン指定がない場合は日本時間(JST)として処理
+    if (!/Z|\+|\-/.test(dateTimeStr)) {
+      date = new Date(`${dateTimeStr}+09:00`);
+    } else {
+      date = new Date(dateTimeStr);
+    }
+
+    if (isNaN(date.getTime())) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'Invalid date format. Please use a valid ISO 8601 format (e.g., "2025-03-20T10:00:00+09:00")'
+      );
+    }
+    return date.toISOString();
+  }
+
   private async handleCreateEvent(args: any) {
     try {
-      const { summary, location, description, start, end, attendees = [] } = args;
+      const {
+        summary,
+        location,
+        description,
+        start,
+        end,
+        attendees,
+        calendarId = 'primary'
+      } = args;
+
+      const resolvedCalendarId = this.getCalendarId(calendarId);
+
+      // Validate calendar ID
+      try {
+        await this.calendar.calendars.get({ calendarId: resolvedCalendarId });
+      } catch (error) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid calendar ID or name: ${calendarId}`
+        );
+      }
+
+      // Validate date formats and convert to UTC
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'Invalid date format. Please use ISO 8601 format (e.g., "2024-03-20T10:00:00Z")'
+        );
+      }
+
+      if (endDate <= startDate) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'End time must be after start time'
+        );
+      }
 
       const event = {
         summary,
         location,
         description,
         start: {
-          dateTime: start,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(start),
+          timeZone: 'UTC',
         },
         end: {
-          dateTime: end,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(end),
+          timeZone: 'UTC',
         },
-        attendees: attendees.map((email: string) => ({ email })),
+        attendees: attendees?.map((email: string) => ({ email })),
       };
 
       const response = await this.calendar.events.insert({
-        calendarId: 'primary',
+        calendarId: resolvedCalendarId,
         requestBody: event,
+        sendUpdates: 'all',
       });
 
       return {
         content: [
           {
             type: 'text',
-            text: `Event created successfully. Event ID: ${response.data.id}`,
-          },
-        ],
+            text: JSON.stringify({
+              success: true,
+              eventId: response.data.id,
+              htmlLink: response.data.htmlLink,
+              start: {
+                utc: response.data!.start!.dateTime!,
+                jst: this.convertToJST(response.data!.start!.dateTime!)
+              },
+              end: {
+                utc: response.data!.end!.dateTime!,
+                jst: this.convertToJST(response.data!.end!.dateTime!)
+              }
+            }, null, 2)
+          }
+        ]
       };
-    } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Error creating event: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
+    } catch (error) {
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to create event: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   private async handleUpdateEvent(args: any) {
     try {
-      const { eventId, summary, location, description, start, end, attendees } = args;
+      const { eventId, calendarId = 'primary', summary, location, description, start, end, attendees } = args;
 
       const event: any = {};
       if (summary) event.summary = summary;
@@ -536,14 +731,14 @@ class GoogleWorkspaceServer {
       if (description) event.description = description;
       if (start) {
         event.start = {
-          dateTime: start,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(start),
+          timeZone: 'UTC',
         };
       }
       if (end) {
         event.end = {
-          dateTime: end,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          dateTime: this.convertToUTC(end),
+          timeZone: 'UTC',
         };
       }
       if (attendees) {
@@ -551,7 +746,7 @@ class GoogleWorkspaceServer {
       }
 
       const response = await this.calendar.events.patch({
-        calendarId: 'primary',
+        calendarId,
         eventId,
         requestBody: event,
       });
@@ -560,9 +755,17 @@ class GoogleWorkspaceServer {
         content: [
           {
             type: 'text',
-            text: `Event updated successfully. Event ID: ${response.data.id}`,
+            text: `Event updated successfully in calendar ${calendarId}. Event ID: ${response.data.id}`,
           },
         ],
+        start: {
+          utc: response.data!.start!.dateTime!,
+          jst: this.convertToJST(response.data!.start!.dateTime!)
+        },
+        end: {
+          utc: response.data!.end!.dateTime!,
+          jst: this.convertToJST(response.data!.end!.dateTime!)
+        }
       };
     } catch (error: any) {
       return {
@@ -579,10 +782,10 @@ class GoogleWorkspaceServer {
 
   private async handleDeleteEvent(args: any) {
     try {
-      const { eventId } = args;
+      const { eventId, calendarId = 'primary' } = args;
 
       await this.calendar.events.delete({
-        calendarId: 'primary',
+        calendarId,
         eventId,
       });
 
@@ -590,7 +793,7 @@ class GoogleWorkspaceServer {
         content: [
           {
             type: 'text',
-            text: `Event deleted successfully. Event ID: ${eventId}`,
+            text: `Event deleted successfully from calendar ${calendarId}. Event ID: ${eventId}`,
           },
         ],
       };
@@ -632,27 +835,27 @@ class GoogleWorkspaceServer {
 
         // JST に変換する関数の例
         const convertToJST = (dateTimeStr: string | null) => {
-            if (!dateTimeStr) return null;
-            const date = new Date(dateTimeStr);
-            return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          if (!dateTimeStr) return null;
+          const date = new Date(dateTimeStr);
+          return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
         };
 
         const events = eventsResponse.data.items || [];
         allEvents = allEvents.concat(
-            events.map((event) => ({
-              calendarId: calendarItem.id,
-              id: event.id,
-              summary: event.summary,
-              start: {
-                  ...event.start,
-                  jst: event.start!.dateTime ? convertToJST(event.start!.dateTime) : convertToJST(event.start!.date!)
-              },
-              end: {
-                  ...event.end,
-                  jst: event.end!.dateTime ? convertToJST(event.end!.dateTime) : convertToJST(event.end!.date!)
-              },
-              location: event.location,
-            }))
+          events.map((event) => ({
+            calendarId: calendarItem.id,
+            id: event.id,
+            summary: event.summary,
+            start: {
+              ...event.start,
+              jst: event.start!.dateTime ? convertToJST(event.start!.dateTime) : convertToJST(event.start!.date!)
+            },
+            end: {
+              ...event.end,
+              jst: event.end!.dateTime ? convertToJST(event.end!.dateTime) : convertToJST(event.end!.date!)
+            },
+            location: event.location,
+          }))
         );
       }
 
@@ -686,7 +889,6 @@ class GoogleWorkspaceServer {
       };
     }
   }
-
 
   async run() {
     const transport = new StdioServerTransport();
