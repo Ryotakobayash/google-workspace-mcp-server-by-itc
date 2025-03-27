@@ -1,80 +1,95 @@
 # Google Workspace MCP Server
 
-A Model Context Protocol (MCP) server that provides tools for interacting with Gmail and Calendar APIs. This server enables you to manage your emails and calendar events programmatically through the MCP interface.
+Google Workspace の機能（カレンダー、メール）を MCP サーバーとして提供するアプリケーション
 
-## Features
+## 機能
 
-### Gmail Tools
-- `list_emails`: List recent emails from your inbox with optional filtering
-- `search_emails`: Advanced email search with Gmail query syntax
-- `send_email`: Send new emails with support for CC and BCC
-- `modify_email`: Modify email labels (archive, trash, mark read/unread)
+### Gmail 機能
 
-### Calendar Tools
-- `list_events`: List upcoming calendar events with date range filtering
-- `create_event`: Create new calendar events with attendees
-- `update_event`: Update existing calendar events
-- `delete_event`: Delete calendar events
+- `list_emails`: 受信トレイから最近のメールをフィルタリング付きで一覧表示
+- `search_emails`: Gmail クエリ構文を使用した高度なメール検索
+- `send_email`: CC、BCC 対応のメール送信
+- `modify_email`: メールラベルの管理（アーカイブ、ゴミ箱、既読/未読）
 
-## Prerequisites
+### カレンダー機能
 
-1. **Node.js**: Install Node.js version 14 or higher
-2. **Google Cloud Console Setup**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
-   - Enable the Gmail API and Google Calendar API:
-     1. Go to "APIs & Services" > "Library"
-     2. Search for and enable "Gmail API"
-     3. Search for and enable "Google Calendar API"
-   - Set up OAuth 2.0 credentials:
-     1. Go to "APIs & Services" > "Credentials"
-     2. Click "Create Credentials" > "OAuth client ID"
-     3. Choose "Web application"
-     4. Set "Authorized redirect URIs" to include: `http://localhost:4100/code`
-     5. Note down the Client ID and Client Secret
+- `list_events`: 日付範囲指定付きの予定一覧表示
+- `create_event`: 参加者付きの予定作成
+- `update_event`: 既存予定の更新
+- `delete_event`: 予定の削除
 
-## Setup Instructions
+## 必要条件
 
-1. **Clone and Install**:
+1. **Node.js**: Node.js 14 以上をインストール
+2. **Google Cloud Console 設定**:
+   - [Google Cloud Console](https://console.cloud.google.com/)にアクセス
+   - 新規プロジェクトの作成または既存プロジェクトの選択
+   - Gmail API と Google Calendar API の有効化:
+     1. "APIs & Services" > "Library"に移動
+     2. "Gmail API"を検索して有効化
+     3. "Google Calendar API"を検索して有効化
+   - OAuth 2.0 認証情報の設定:
+     1. "APIs & Services" > "Credentials"に移動
+     2. "Create Credentials" > "OAuth client ID"をクリック
+     3. "Web application"を選択
+     4. "Authorized redirect URIs"に`http://localhost:4100/code`を追加
+     5. Client ID と Client Secret をメモ
+
+## セットアップ手順
+
+1. **リポジトリのクローンとインストール**:
+
    ```bash
    git clone https://github.com/epaproditus/google-workspace-mcp-server.git
    cd google-workspace-mcp-server
    npm install
    ```
 
-2. **Create OAuth Credentials**:
-   Create a `credentials.json` file in the root directory:
+2. **認証情報の設定**:
+
+   ```bash
+   # credentials.json.exampleをコピー
+   cp credentials.json.example credentials.json
+   ```
+
+   `credentials.json`を以下のように編集:
+
    ```json
    {
-       "web": {
-           "client_id": "YOUR_CLIENT_ID",
-           "client_secret": "YOUR_CLIENT_SECRET",
-           "redirect_uris": ["http://localhost:4100/code"],
-           "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-           "token_uri": "https://oauth2.googleapis.com/token"
-       }
+     "web": {
+       "client_id": "YOUR_CLIENT_ID",
+       "client_secret": "YOUR_CLIENT_SECRET",
+       "redirect_uris": ["http://localhost:4100/code"],
+       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+       "token_uri": "https://oauth2.googleapis.com/token"
+     }
    }
    ```
 
-3. **Get Refresh Token**:
+3. **リフレッシュトークンの取得**:
+
    ```bash
    node get-refresh-token.js
    ```
-   This will:
-   - Open your browser for Google OAuth authentication
-   - Request the following permissions:
+
+   これにより:
+
+   - ブラウザが開き、Google OAuth 認証が実行されます
+   - 以下の権限が要求されます:
      - `https://www.googleapis.com/auth/gmail.modify`
      - `https://www.googleapis.com/auth/calendar`
      - `https://www.googleapis.com/auth/gmail.send`
-   - Save the credentials to `token.json`
-   - Display the refresh token in the console
+   - 認証情報が`token.json`に保存されます
+   - コンソールにリフレッシュトークンが表示されます
 
-4. **Configure MCP Settings**:
-   Add the server configuration to your MCP settings file:
-   - For VSCode Claude extension: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-   - For Claude desktop app: `~/Library/Application Support/Claude/claude_desktop_config.json`
+4. **MCP 設定の構成**:
+   MCP 設定ファイルにサーバー設定を追加:
 
-   Add this to the `mcpServers` object:
+   - VSCode Claude 拡張機能: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+   - Claude デスクトップアプリ: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+   `mcpServers`オブジェクトに以下を追加:
+
    ```json
    {
      "mcpServers": {
@@ -91,16 +106,17 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-5. **Build and Run**:
+5. **ビルドと実行**:
    ```bash
    npm run build
    ```
 
-## Usage Examples
+## 使用例
 
-### Gmail Operations
+### Gmail 操作
 
-1. **List Recent Emails**:
+1. **最近のメール一覧**:
+
    ```json
    {
      "maxResults": 5,
@@ -108,7 +124,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-2. **Search Emails**:
+2. **メール検索**:
+
    ```json
    {
      "query": "from:example@gmail.com has:attachment",
@@ -116,7 +133,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-3. **Send Email**:
+3. **メール送信**:
+
    ```json
    {
      "to": "recipient@example.com",
@@ -127,7 +145,7 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-4. **Modify Email**:
+4. **メールラベルの変更**:
    ```json
    {
      "id": "message_id",
@@ -136,9 +154,10 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-### Calendar Operations
+### カレンダー操作
 
-1. **List Events**:
+1. **予定一覧**:
+
    ```json
    {
      "maxResults": 10,
@@ -147,7 +166,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-2. **Create Event**:
+2. **予定作成**:
+
    ```json
    {
      "summary": "Team Meeting",
@@ -159,7 +179,8 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-3. **Update Event**:
+3. **予定更新**:
+
    ```json
    {
      "eventId": "event_id",
@@ -170,25 +191,26 @@ A Model Context Protocol (MCP) server that provides tools for interacting with G
    }
    ```
 
-4. **Delete Event**:
+4. **予定削除**:
    ```json
    {
      "eventId": "event_id"
    }
    ```
 
-## Troubleshooting
+## トラブルシューティング
 
-1. **Authentication Issues**:
-   - Ensure all required OAuth scopes are granted
-   - Verify client ID and secret are correct
-   - Check if refresh token is valid
+1. **認証の問題**:
 
-2. **API Errors**:
-   - Check Google Cloud Console for API quotas and limits
-   - Ensure APIs are enabled for your project
-   - Verify request parameters match the required format
+   - 必要な OAuth スコープが付与されているか確認
+   - Client ID と Secret が正しいか確認
+   - リフレッシュトークンが有効か確認
 
-## License
+2. **API エラー**:
+   - Google Cloud Console で API クォータと制限を確認
+   - プロジェクトで API が有効化されているか確認
+   - リクエストパラメータが正しい形式か確認
 
-This project is licensed under the MIT License.
+## ライセンス
+
+MIT
