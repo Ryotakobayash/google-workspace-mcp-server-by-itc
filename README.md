@@ -1,5 +1,8 @@
 # Google Workspace MCP Server
 
+このプロジェクトは以下のリポジトリをベースに作成しています：
+[epaproditus/google-workspace-mcp-server](https://github.com/epaproditus/google-workspace-mcp-server)
+
 Google Workspace の機能（カレンダー、メール）を MCP サーバーとして提供するアプリケーション
 
 ## 機能
@@ -20,7 +23,7 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 
 ## 必要条件
 
-1. **Node.js**: Node.js 14 以上をインストール
+1. **Node.js**: Node.js 20 以上をインストール
 2. **Google Cloud Console 設定**:
    - [Google Cloud Console](https://console.cloud.google.com/)にアクセス
    - 新規プロジェクトの作成または既存プロジェクトの選択
@@ -31,7 +34,7 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    - OAuth 2.0 認証情報の設定:
      1. "APIs & Services" > "Credentials"に移動
      2. "Create Credentials" > "OAuth client ID"をクリック
-     3. "Web application"を選択
+     3. "Desktop application"を選択
      4. "Authorized redirect URIs"に`http://localhost:4100/code`を追加
      5. Client ID と Client Secret をメモ
 
