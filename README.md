@@ -123,7 +123,7 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    cp .env.example .env
    ```
 
-   `.env` に以下の環境変数を正しく設定してください:
+   `.env` に以下の環境変数を設定してください:
 
    ```env
    SSH_USER=your_ssh_user
@@ -131,11 +131,16 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    SSH_PATH=/your/deploy/path
    ```
 
-   これにより、以下のコマンドでビルド成果物をサーバーに転送できます:
+## npm scripts
 
-   ```bash
-   npm run deploy
-   ```
+| コマンド         | 説明                                  |
+|----------------|-------------------------------------|
+| `npm run build`| バンドルを作成し、実行可能権限を付与       |
+| `npm run watch`| 開発中に変更を監視して自動でビルド        |
+| `npm run start`| ローカルでビルド＆実行                    |
+| `npm run clean`| ビルド成果物を削除                      |
+| `npm run deploy`| ビルド後、本番環境にファイルをデプロイ    |
+| `npm run logs` | 本番環境のアプリケーションログをリアルタイムで表示 |
 
 ## 使用例
 
@@ -242,4 +247,3 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 ## ライセンス
 
 MIT
-
