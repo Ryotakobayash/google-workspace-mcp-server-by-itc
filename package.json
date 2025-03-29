@@ -14,7 +14,8 @@
     "build": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
     "watch": "tsc --watch",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "deploy": "npm run build && npx dotenv -f .env -- sh -c 'scp -r build/* \"$SSH_USER@$SSH_HOST:$SSH_PATH\"'"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
+    "dotenv-cli": "^8.0.0",
     "typescript": "^5.3.3"
   }
 }

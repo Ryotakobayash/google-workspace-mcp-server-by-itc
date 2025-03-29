@@ -5,5 +5,7 @@ build/
 credentials.json
 token.json
 .idea/
+.env.*
+!.env.example
 
 gogole-workspace-mcp-server-by-itc_project_summary.txt

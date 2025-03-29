@@ -25,18 +25,18 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 
 1. **Node.js**: Node.js 20 以上をインストール
 2. **Google Cloud Console 設定**:
-   - [Google Cloud Console](https://console.cloud.google.com/)にアクセス
-   - 新規プロジェクトの作成または既存プロジェクトの選択
-   - Gmail API と Google Calendar API の有効化:
-     1. "APIs & Services" > "Library"に移動
-     2. "Gmail API"を検索して有効化
-     3. "Google Calendar API"を検索して有効化
-   - OAuth 2.0 認証情報の設定:
-     1. "APIs & Services" > "Credentials"に移動
-     2. "Create Credentials" > "OAuth client ID"をクリック
-     3. "Desktop application"を選択
-     4. "Authorized redirect URIs"に`http://localhost:4100/code`を追加
-     5. Client ID と Client Secret をメモ
+    - [Google Cloud Console](https://console.cloud.google.com/)にアクセス
+    - 新規プロジェクトの作成または既存プロジェクトの選択
+    - Gmail API と Google Calendar API の有効化:
+        1. "APIs & Services" > "Library"に移動
+        2. "Gmail API"を検索して有効化
+        3. "Google Calendar API"を検索して有効化
+    - OAuth 2.0 認証情報の設定:
+        1. "APIs & Services" > "Credentials"に移動
+        2. "Create Credentials" > "OAuth client ID"をクリック
+        3. "Desktop application"を選択
+        4. "Authorized redirect URIs"に`http://localhost:4100/code`を追加
+        5. Client ID と Client Secret をメモ
 
 ## セットアップ手順
 
@@ -77,19 +77,19 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 
    これにより:
 
-   - ブラウザが開き、Google OAuth 認証が実行されます
-   - 以下の権限が要求されます:
-     - `https://www.googleapis.com/auth/gmail.modify`
-     - `https://www.googleapis.com/auth/calendar`
-     - `https://www.googleapis.com/auth/gmail.send`
-   - 認証情報が`token.json`に保存されます
-   - コンソールにリフレッシュトークンが表示されます
+    - ブラウザが開き、Google OAuth 認証が実行されます
+    - 以下の権限が要求されます:
+        - `https://www.googleapis.com/auth/gmail.modify`
+        - `https://www.googleapis.com/auth/calendar`
+        - `https://www.googleapis.com/auth/gmail.send`
+    - 認証情報が`token.json`に保存されます
+    - コンソールにリフレッシュトークンが表示されます
 
 4. **MCP 設定の構成**:
    MCP 設定ファイルにサーバー設定を追加:
 
-   - VSCode Claude 拡張機能: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-   - Claude デスクトップアプリ: `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - VSCode Claude 拡張機能: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+    - Claude デスクトップアプリ: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
    `mcpServers`オブジェクトに以下を追加:
 
@@ -110,8 +110,31 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    ```
 
 5. **ビルドと実行**:
+
    ```bash
    npm run build
+   ```
+
+6. **デプロイ設定の追加 (.env)**:
+
+   `deploy` スクリプトを使用するには `.env` ファイルが必要です。
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   `.env` に以下の環境変数を正しく設定してください:
+
+   ```env
+   SSH_USER=your_ssh_user
+   SSH_HOST=your.ssh.host
+   SSH_PATH=/your/deploy/path
+   ```
+
+   これにより、以下のコマンドでビルド成果物をサーバーに転送できます:
+
+   ```bash
+   npm run deploy
    ```
 
 ## 使用例
@@ -149,6 +172,7 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    ```
 
 4. **メールラベルの変更**:
+
    ```json
    {
      "id": "message_id",
@@ -195,6 +219,7 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
    ```
 
 4. **予定削除**:
+
    ```json
    {
      "eventId": "event_id"
@@ -205,15 +230,16 @@ Google Workspace の機能（カレンダー、メール）を MCP サーバー�
 
 1. **認証の問題**:
 
-   - 必要な OAuth スコープが付与されているか確認
-   - Client ID と Secret が正しいか確認
-   - リフレッシュトークンが有効か確認
+    - 必要な OAuth スコープが付与されているか確認
+    - Client ID と Secret が正しいか確認
+    - リフレッシュトークンが有効か確認
 
 2. **API エラー**:
-   - Google Cloud Console で API クォータと制限を確認
-   - プロジェクトで API が有効化されているか確認
-   - リクエストパラメータが正しい形式か確認
+    - Google Cloud Console で API クォータと制限を確認
+    - プロジェクトで API が有効化されているか確認
+    - リクエストパラメータが正しい形式か確認
 
 ## ライセンス
 
 MIT
+
