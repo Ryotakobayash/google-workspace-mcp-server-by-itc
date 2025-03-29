@@ -108,7 +108,6 @@ class GoogleWorkspaceServer {
               query: {
                 type: 'string',
                 description: 'Gmail search query (e.g., "from:example@gmail.com has:attachment")',
-                required: true
               },
               maxResults: {
                 type: 'number',
