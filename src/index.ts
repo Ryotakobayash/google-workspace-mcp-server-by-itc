@@ -10,6 +10,18 @@ import {
 import { google } from 'googleapis';
 import { z } from 'zod';
 
+// (1) 環境変数の読み込み
+const clientId = process.env.GOOGLE_CLIENT_ID;
+const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+if (!clientId || !clientSecret || !refreshToken) {
+  throw new Error('環境変数が設定されていません');
+}
+
+// (2) OAuth2 クライアントの初期化
+const auth = new google.auth.OAuth2(clientId, clientSecret);
+auth.setCredentials({ refresh_token: refreshToken });
+
 const ListResourcesRequestSchema = z.object({
   jsonrpc: z.string(),
   id: z.any(),
